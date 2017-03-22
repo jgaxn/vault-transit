@@ -1,6 +1,6 @@
 # Vault::Transit
 
-This gem wraps the endpoints for [HashiCorp's Vault Transit secret backend](https://www.vaultproject.io/docs/secrets/transit/). It is dependent upon the [vault gem](https://github.com/hashicorp/vault-ruby).
+This gem wraps the endpoints for [HashiCorp's Vault Transit secret backend](https://www.vaultproject.io/docs/secrets/transit/). It is dependent upon the [vault gem](https://github.com/hashicorp/vault-ruby). This gem has patterns and code copied from HashiCorp's [vault-ruby gem](https://github.com/hashicorp/vault-rails). Use this gem when you simply want to use the Transit secret backend and you don't need the Rails integration.
 
 ## Installation
 
