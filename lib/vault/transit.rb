@@ -64,7 +64,7 @@ module Vault
 
         key  = key.to_s if !key.is_a?(String)
 
-        with_retries do
+        with_retries_and_reauthentication do
           if self.enabled?
             result = self.vault_decrypt(key, ciphertext, client)
           else
@@ -93,7 +93,7 @@ module Vault
 
         key  = key.to_s if !key.is_a?(String)
 
-        with_retries do
+        with_retries_and_reauthentication do
           if self.enabled?
             result = self.vault_encrypt(key, plaintext, client)
           else
@@ -123,7 +123,7 @@ module Vault
         key  = key.to_s unless key.is_a?(String)
         route  = File.join("transit", "rewrap", key)
 
-        with_retries do
+        with_retries_and_reauthentication do
           if self.enabled?
             secret = client.logical.write(route,
               ciphertext: ciphertext,
@@ -147,7 +147,7 @@ module Vault
         key  = key.to_s unless key.is_a?(String)
         route  = File.join("transit", "keys", key, "rotate")
 
-        with_retries do
+        with_retries_and_reauthentication do
           if self.enabled?
             client.logical.write(route)
           end
@@ -166,7 +166,7 @@ module Vault
       def set_min_decryption_version(key, min_decryption_version, client = self.client)
         key  = key.to_s unless key.is_a?(String)
 
-        with_retries do
+        with_retries_and_reauthentication do
           if self.enabled?
             route = File.join("transit", "keys", key, "config")
             client.logical.write(route,
@@ -242,6 +242,34 @@ module Vault
 
     private
 
+      def log_warning(msg)
+        if defined?(::Rails) && ::Rails.logger != nil
+          ::Rails.logger.warn { msg }
+        end
+      end
+
+      def permission_denied?(error)
+        error.errors.include? "permission denied"
+      end
+
+      def reauthenticate!
+        return nil unless ENV["VAULT_APP_ID"] && ENV["VAULT_SYSTEM_ID"]
+        secret = ::Vault::Transit.auth.app_id(ENV["VAULT_APP_ID"], ENV["VAULT_SYSTEM_ID"])
+        ::Vault::Transit.token = secret.auth.client_token
+      end
+
+      def with_reauthentication(client = self.client, &block)
+        retries ||= 0
+        reauthenticate! if self.enabled? && self.token.nil?
+        yield
+      rescue ::Vault::HTTPError => error
+        raise unless permission_denied?(error)
+
+        reauthenticate!
+        retry if (retries += 1) < 2
+        raise
+      end
+
       def with_retries(client = self.client, &block)
         exceptions = [Vault::HTTPConnectionError, Vault::HTTPServerError]
         options = {
@@ -260,9 +288,11 @@ module Vault
         end
       end
 
-      def log_warning(msg)
-        if defined?(::Rails) && ::Rails.logger != nil
-          ::Rails.logger.warn { msg }
+      def with_retries_and_reauthentication(client = self.client, &block)
+        with_reauthentication do
+          with_retries do
+            yield
+          end
         end
       end
     end
