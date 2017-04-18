@@ -33,7 +33,7 @@ module Vault
       #
       # @return [Fixnum]
       def retry_attempts
-        @retry_attempts ||= 0
+        @retry_attempts ||= Vault::Defaults::RETRY_ATTEMPTS
       end
 
       # Sets the number of retry attempts. Please see the Vault documentation
